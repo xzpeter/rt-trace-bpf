@@ -51,7 +51,7 @@ import sys
 import os
 import re
 
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 
 # Limit this because we use one u64 as cpumask.  Problem is BPF does not allow
 # loop, so any real cpumask won't work.
@@ -167,7 +167,7 @@ tracepoint_list = {
 }
 
 def handle_func(name, event):
-    return "%s (func=%s)" % (name, _d(bpf.ksym(event.args[0])))
+    return "%s (cpu=%d, func=%s)" % (name, event.cpu, _d(bpf.ksym(event.args[0])))
 
 def handle_target_func(name, event):
     return "%s (target=%d, func=%s)" % \
@@ -497,7 +497,7 @@ def print_event(cpu, data, size):
     time_s -= first_ts
     entry = hook_active_list[event.msg_type]
     name = entry["name"]
-    msg = name
+    msg = "%s (cpu=%d)" % (name, event.cpu)
     comm = _d(event.comm)
 
     if start_phase and cur_pid == event.pid:
