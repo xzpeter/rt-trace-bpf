@@ -140,7 +140,6 @@ def parse_args():
         print("CPU list (--cpu-list/-c) is required.  " +
               "Please use '-h' to dump the complete help message.")
         exit(0)
-    cpu_list = parse_cpu_list(args.cpu_list)
     try:
         cpu_list = parse_cpu_list(args.cpu_list)
     except:
@@ -536,7 +535,7 @@ def print_event(cpu, data, size):
                     bt.append(sym)
                 if "backtrace" not in results[msg]:
                     results[msg]["backtrace"] = bt
-            except(e):
+            except Exception as e:
                 if not args.quiet:
                     print("[detected error: %s]" % e)
 
