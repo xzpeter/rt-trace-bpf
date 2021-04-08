@@ -232,7 +232,7 @@ struct data_t {
     char comm[TASK_COMM_LEN];
     u32 cpu;
 #if BACKTRACE_ENABLED
-    u32 stack_id;
+    int stack_id;
 #endif
 };
 
@@ -525,7 +525,7 @@ def print_event(cpu, data, size):
     if args.backtrace:
         stack_id = event.stack_id
         # Skip for -EFAULT
-        if stack_id != 0xfffffff2:
+        if stack_id != -14:
             bt = []
             try:
                 for addr in stack_traces.walk(stack_id):
@@ -537,7 +537,8 @@ def print_event(cpu, data, size):
                     results[msg]["backtrace"] = bt
             except Exception as e:
                 if not args.quiet:
-                    print("[detected error: %s]" % e)
+                    print("[detected error (stack_id=%d): %s]" \
+                          % (stack_id, e))
 
 def apply_cpu_list(bpf, cpu_list):
     """Apply the cpu_list to BPF program"""
