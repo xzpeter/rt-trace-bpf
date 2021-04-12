@@ -47,6 +47,7 @@ import platform
 import signal
 import ctypes
 import json
+import time
 import sys
 import os
 import re
@@ -127,12 +128,12 @@ def parse_args():
     parser.add_argument("--version", "-v", action='store_true',
                         help='Dump version information (current: %s)' % VERSION)
     parser.add_argument("--summary", "-s", action='store_true',
-                        help='Dump summary when stop/SIGINT (default: off)')
+                        help='Dump summary when stopped (default: off)')
     parser.add_argument("--quiet", "-q", action='store_true',
-                        help='Quiet mode; only dump summary (implies "-s" too)')
+                        help='Quiet mode, dump result when stopped; efficient, but less data (default: off)')
     args = parser.parse_args()
-    if args.quiet:
-        args.summary = True
+    if args.quiet and args.summary:
+        err("Parameter --quiet and --summary cannot be used together")
     if args.version:
         print("Version: %s" % VERSION)
         exit(0)
@@ -225,24 +226,32 @@ body = """
 GENERATED_DEFINES
 
 struct data_t {
-    u32 msg_type;
-    u32 pid;
-    u64 ts;
     // this is optional per message per message type, only set when there's a
     // target func ptr bound to the event, e.g., work ptr of queue_work_on().
     u64 funcptr;
-    u64 args[2];
-    char comm[TASK_COMM_LEN];
-    u32 cpu;
+    u32 msg_type;
 #if BACKTRACE_ENABLED
     int stack_id;
 #endif
+
+#if POLL_MODE
+    // below fields are only needed for polling mode
+    u32 pid;
+    u32 cpu;
+    char comm[TASK_COMM_LEN];
+    u64 args[2];
+    u64 ts;
+#endif
 };
 
-// Used to communicate with the userspace program
-BPF_PERF_OUTPUT(events);
 // Cpumask of which trace is enabled.  Now only covers 64 cores.
 BPF_ARRAY(trace_enabled, u64, 1);
+
+#if POLL_MODE
+BPF_PERF_OUTPUT(events);
+#else
+BPF_HASH(output, struct data_t);
+#endif
 
 #if BACKTRACE_ENABLED
 // Calltrace buffers
@@ -253,14 +262,26 @@ static inline void
 fill_data(struct pt_regs *regs, struct data_t *data, u32 msg_type)
 {
     data->msg_type = msg_type;
-    data->pid = bpf_get_current_pid_tgid();
-    data->ts = bpf_ktime_get_ns();
-    data->cpu = bpf_get_smp_processor_id();
 #if BACKTRACE_ENABLED
     // stack_id can be -EFAULT (0xfffffff2) when not applicable
     data->stack_id = stack_traces.get_stackid(regs, 0);
 #endif
+#if POLL_MODE
+    data->pid = bpf_get_current_pid_tgid();
+    data->ts = bpf_ktime_get_ns();
+    data->cpu = bpf_get_smp_processor_id();
     bpf_get_current_comm(data->comm, sizeof(data->comm));
+#endif
+}
+
+static inline void
+data_submit(struct pt_regs *ctx, struct data_t *data)
+{
+#if POLL_MODE
+    events.perf_submit(ctx, data, sizeof(*data));
+#else
+    output.increment(*data, 1);
+#endif
 }
 
 // Base function to be called by all kinds of hooks
@@ -269,7 +290,7 @@ kprobe_common(struct pt_regs *ctx, u32 msg_type)
 {
     struct data_t data = {};
     fill_data(ctx, &data, msg_type);
-    events.perf_submit(ctx, &data, sizeof(data));
+    data_submit(ctx, &data);
 }
 
 static inline u64* get_cpu_list(void)
@@ -336,7 +357,7 @@ int kprobe__process_one_work(struct pt_regs *regs, void *unused,
 
     fill_data(regs, &data, MSG_TYPE_PROCESS_ONE_WORK);
     data.funcptr = (u64)work->func;
-    events.perf_submit(regs, &data, sizeof(data));
+    data_submit(regs, &data);
     return 0;
 }
 #endif
@@ -351,9 +372,11 @@ int kprobe____queue_work(struct pt_regs *regs, int cpu, void *unused,
         return 0;
 
     fill_data(regs, &data, MSG_TYPE___QUEUE_WORK);
+#if POLL_MODE
     data.args[0] = (u64)cpu;
+#endif
     data.funcptr = (u64)work->func;
-    events.perf_submit(regs, &data, sizeof(data));
+    data_submit(regs, &data);
     return 0;
 }
 #endif
@@ -369,10 +392,12 @@ int kprobe____queue_delayed_work(struct pt_regs *regs, int cpu,
         return 0;
 
     fill_data(regs, &data, MSG_TYPE___QUEUE_DELAYED_WORK);
+#if POLL_MODE
     data.args[0] = (u64)cpu;
     data.args[1] = (u64)delay;
+#endif
     data.funcptr = (u64)work->work.func;
-    events.perf_submit(regs, &data, sizeof(data));
+    data_submit(regs, &data);
     return 0;
 }
 #endif
@@ -392,13 +417,15 @@ int kprobe__generic_exec_single(struct pt_regs *regs, int cpu,
         return 0;
 
     fill_data(regs, &data, MSG_TYPE_GENERIC_EXEC_SINGLE);
+#if POLL_MODE
     data.args[0] = (u64)cpu;
+#endif
 #if OS_VERSION_RHEL8
     data.funcptr = (u64)func;
 #else
     data.funcptr = (u64)csd->func;
 #endif
-    events.perf_submit(regs, &data, sizeof(data));
+    data_submit(regs, &data);
     return 0;
 }
 #endif
@@ -414,7 +441,7 @@ int kprobe__smp_call_function_many_cond(struct pt_regs *regs,
 
     fill_data(regs, &data, MSG_TYPE_SMP_CALL_FUNCTION_MANY_COND);
     data.funcptr = (u64)func;
-    events.perf_submit(regs, &data, sizeof(data));
+    data_submit(regs, &data);
     return 0;
 }
 #endif
@@ -429,7 +456,7 @@ int kprobe__irq_work_queue(struct pt_regs *regs, struct irq_work *work)
 
     fill_data(regs, &data, MSG_TYPE_IRQ_WORK_QUEUE);
     data.funcptr = (u64)work->func;
-    events.perf_submit(regs, &data, sizeof(data));
+    data_submit(regs, &data);
     return 0;
 }
 #endif
@@ -444,9 +471,11 @@ int kprobe__irq_work_queue_on(struct pt_regs *regs, struct irq_work *work,
         return 0;
 
     fill_data(regs, &data, MSG_TYPE_IRQ_WORK_QUEUE_ON);
+#if POLL_MODE
     data.args[0] = (u64)cpu;
+#endif
     data.funcptr = (u64)work->func;
-    events.perf_submit(regs, &data, sizeof(data));
+    data_submit(regs, &data);
     return 0;
 }
 #endif
@@ -454,13 +483,56 @@ int kprobe__irq_work_queue_on(struct pt_regs *regs, struct irq_work *work,
 GENERATED_HOOKS
 """
 
+def get_stack(stack_id):
+    global bpf, stack_traces
+    bt = []
+    if stack_id == -14:
+        # -EFAULT
+        return []
+    if stack_id < 0:
+        # Unknown error
+        print("[error: stack_id=%d]" % stack_id)
+        return []
+    for addr in stack_traces.walk(stack_id):
+        sym = _d(bpf.ksym(addr, show_offset=True))
+        bt.append(sym)
+    return bt
+
+def collect_hash_data():
+    global hook_active_list, args, bpf
+
+    results = []
+    data = list(bpf.get_table("output").items())
+    data.sort(key=lambda x: x[1].value)
+    for event, count in data:
+        count = count.value
+        hook = hook_active_list[event.msg_type]
+        entry = {
+            "name": hook["name"],
+            "count": count,
+        }
+        if event.funcptr:
+            entry["funcptr"] = _d(bpf.ksym(event.funcptr))
+        if args.backtrace:
+            entry["stack"] = get_stack(event.stack_id)
+        results.append(entry)
+
+    return results
+
 # Allow quitting the tracing using Ctrl-C
 def int_handler(signum, frame):
-    global results, args
-    if args.summary:
+    global results
+
+    # For poll mode, summary already in "results"
+    if args.quiet:
+        results = collect_hash_data()
+
+    if args.summary or args.quiet:
         print("Dump summary of messages:\n")
         print(json.dumps(results, indent=4))
+
     exit(0)
+
 signal.signal(signal.SIGINT, int_handler)
 signal.signal(signal.SIGTERM, int_handler)
 
@@ -516,9 +588,8 @@ def print_event(cpu, data, size):
         if handler:
             # Overwrite msg with the handler output
             msg = handler(name, event)
-    if not args.quiet:
-        print("%-18.9f %-20s %-4d %-8d %s" %
-            (time_s, comm, event.cpu, event.pid, msg))
+    print("%-18.9f %-20s %-4d %-8d %s" %
+        (time_s, comm, event.cpu, event.pid, msg))
 
     if msg not in results:
         results[msg] = { "count": 1 }
@@ -526,22 +597,11 @@ def print_event(cpu, data, size):
         results[msg]["count"] += 1
 
     if args.backtrace:
-        stack_id = event.stack_id
-        # Skip for -EFAULT
-        if stack_id != -14:
-            bt = []
-            try:
-                for addr in stack_traces.walk(stack_id):
-                    sym = _d(bpf.ksym(addr, show_offset=True))
-                    if not args.quiet:
-                        print("\t%s" % sym)
-                    bt.append(sym)
-                if "backtrace" not in results[msg]:
-                    results[msg]["backtrace"] = bt
-            except Exception as e:
-                if not args.quiet:
-                    print("[detected error (stack_id=%d): %s]" \
-                          % (stack_id, e))
+        bt = get_stack(event.stack_id)
+        for call in bt:
+            print("\t%s" % call)
+        if "backtrace" not in results[msg]:
+            results[msg]["backtrace"] = bt
 
 def apply_cpu_list(bpf, cpu_list):
     """Apply the cpu_list to BPF program"""
@@ -579,6 +639,9 @@ def main():
     define_add("OS_VERSION_RHEL8", os_version == "rhel8")
     define_add("BACKTRACE_ENABLED", args.backtrace)
     define_add("MAX_N_CPUS", MAX_N_CPUS)
+    # When --quiet, we use map mode so we only collect data at the end;
+    # otherwise use poll mode to fetch message one by one
+    define_add("POLL_MODE", not args.quiet)
 
     body = body.replace("GENERATED_HOOKS", hooks)
     body = body.replace("GENERATED_DEFINES", defines)
@@ -601,10 +664,11 @@ def main():
 
     if not args.quiet:
         print("%-18s %-20s %-4s %-8s %s" % ("TIME(s)", "COMM", "CPU", "PID", "MSG"))
+        bpf["events"].open_perf_buffer(print_event)
+        while 1:
+            bpf.perf_buffer_poll()
     else:
         print("Press Ctrl-C to show results..")
-    bpf["events"].open_perf_buffer(print_event)
-    while 1:
-        bpf.perf_buffer_poll()
+        time.sleep(99999999)
 
 main()
