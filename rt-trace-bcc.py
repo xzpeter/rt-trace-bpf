@@ -166,15 +166,15 @@ tracepoint_list = {
 }
 
 def handle_func(name, event):
-    return "%s (cpu=%d, func=%s)" % (name, event.cpu, _d(bpf.ksym(event.args[0])))
+    return "%s (cpu=%d, func=%s)" % (name, event.cpu, _d(bpf.ksym(event.funcptr)))
 
 def handle_target_func(name, event):
     return "%s (target=%d, func=%s)" % \
-        (name, event.args[0], _d(bpf.ksym(event.args[1])))
+        (name, event.args[0], _d(bpf.ksym(event.funcptr)))
 
 def handle_queue_delayed_work(name, event):
     return "%s (target=%d, func=%s, delay=%d)" % \
-        (name, event.args[0], _d(bpf.ksym(event.args[1])), event.args[2])
+        (name, event.args[0], _d(bpf.ksym(event.funcptr)), event.args[1])
 
 # These kprobes have custom hooks so they can dump more things
 static_kprobe_list = {
@@ -228,7 +228,10 @@ struct data_t {
     u32 msg_type;
     u32 pid;
     u64 ts;
-    u64 args[4];
+    // this is optional per message per message type, only set when there's a
+    // target func ptr bound to the event, e.g., work ptr of queue_work_on().
+    u64 funcptr;
+    u64 args[2];
     char comm[TASK_COMM_LEN];
     u32 cpu;
 #if BACKTRACE_ENABLED
@@ -332,7 +335,7 @@ int kprobe__process_one_work(struct pt_regs *regs, void *unused,
         return 0;
 
     fill_data(regs, &data, MSG_TYPE_PROCESS_ONE_WORK);
-    data.args[0] = (u64)work->func;
+    data.funcptr = (u64)work->func;
     events.perf_submit(regs, &data, sizeof(data));
     return 0;
 }
@@ -349,7 +352,7 @@ int kprobe____queue_work(struct pt_regs *regs, int cpu, void *unused,
 
     fill_data(regs, &data, MSG_TYPE___QUEUE_WORK);
     data.args[0] = (u64)cpu;
-    data.args[1] = (u64)work->func;
+    data.funcptr = (u64)work->func;
     events.perf_submit(regs, &data, sizeof(data));
     return 0;
 }
@@ -367,8 +370,8 @@ int kprobe____queue_delayed_work(struct pt_regs *regs, int cpu,
 
     fill_data(regs, &data, MSG_TYPE___QUEUE_DELAYED_WORK);
     data.args[0] = (u64)cpu;
-    data.args[1] = (u64)work->work.func;
-    data.args[2] = (u64)delay;
+    data.args[1] = (u64)delay;
+    data.funcptr = (u64)work->work.func;
     events.perf_submit(regs, &data, sizeof(data));
     return 0;
 }
@@ -391,9 +394,9 @@ int kprobe__generic_exec_single(struct pt_regs *regs, int cpu,
     fill_data(regs, &data, MSG_TYPE_GENERIC_EXEC_SINGLE);
     data.args[0] = (u64)cpu;
 #if OS_VERSION_RHEL8
-    data.args[1] = (u64)func;
+    data.funcptr = (u64)func;
 #else
-    data.args[1] = (u64)csd->func;
+    data.funcptr = (u64)csd->func;
 #endif
     events.perf_submit(regs, &data, sizeof(data));
     return 0;
@@ -410,7 +413,7 @@ int kprobe__smp_call_function_many_cond(struct pt_regs *regs,
         return 0;
 
     fill_data(regs, &data, MSG_TYPE_SMP_CALL_FUNCTION_MANY_COND);
-    data.args[0] = (u64)func;
+    data.funcptr = (u64)func;
     events.perf_submit(regs, &data, sizeof(data));
     return 0;
 }
@@ -425,7 +428,7 @@ int kprobe__irq_work_queue(struct pt_regs *regs, struct irq_work *work)
         return 0;
 
     fill_data(regs, &data, MSG_TYPE_IRQ_WORK_QUEUE);
-    data.args[0] = (u64)work->func;
+    data.funcptr = (u64)work->func;
     events.perf_submit(regs, &data, sizeof(data));
     return 0;
 }
@@ -442,7 +445,7 @@ int kprobe__irq_work_queue_on(struct pt_regs *regs, struct irq_work *work,
 
     fill_data(regs, &data, MSG_TYPE_IRQ_WORK_QUEUE_ON);
     data.args[0] = (u64)cpu;
-    data.args[1] = (u64)work->func;
+    data.funcptr = (u64)work->func;
     events.perf_submit(regs, &data, sizeof(data));
     return 0;
 }
