@@ -245,7 +245,7 @@ struct data_t {
 };
 
 // Cpumask of which trace is enabled.  Now only covers 64 cores.
-BPF_ARRAY(trace_enabled, u64, 1);
+BPF_ARRAY(trace_enabled_cpumask, u64, 1);
 
 #if POLL_MODE
 BPF_PERF_OUTPUT(events);
@@ -297,7 +297,7 @@ static inline u64* get_cpu_list(void)
 {
     int index = 0;
 
-    return trace_enabled.lookup(&index);
+    return trace_enabled_cpumask.lookup(&index);
 }
 
 static inline bool cpu_in_list(int cpu)
@@ -609,7 +609,7 @@ def print_event(cpu, data, size):
 
 def apply_cpu_list(bpf, cpu_list):
     """Apply the cpu_list to BPF program"""
-    cpu_array = bpf.get_table("trace_enabled")
+    cpu_array = bpf.get_table("trace_enabled_cpumask")
     out = 0
     for cpu in cpu_list:
         out |= 1 << cpu
