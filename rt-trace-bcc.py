@@ -501,21 +501,25 @@ def get_stack(stack_id):
 def collect_hash_data():
     global hook_active_list, args, bpf
 
-    results = []
+    results = {}
     data = list(bpf.get_table("output").items())
     data.sort(key=lambda x: x[1].value)
     for event, count in data:
         count = count.value
         hook = hook_active_list[event.msg_type]
-        entry = {
-            "name": hook["name"],
-            "count": count,
-        }
         if event.funcptr:
-            entry["funcptr"] = _d(bpf.ksym(event.funcptr))
+            funcptr = "funcptr=%s" % _d(bpf.ksym(event.funcptr))
+        else:
+            funcptr = "funcptr=NULL"
+        if funcptr not in results:
+            results[funcptr] = {}
+        name = "hook=%s" % hook["name"]
+        if name not in results[funcptr]:
+            results[funcptr][name] = []
+        entry = { "count": count }
         if args.backtrace:
             entry["stack"] = get_stack(event.stack_id)
-        results.append(entry)
+        results[funcptr][name].append(entry)
 
     return results
 
