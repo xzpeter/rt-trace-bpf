@@ -78,6 +78,7 @@ results = {}
 # since bcc will trigger quite a few hooks below
 start_phase = True
 cur_pid = os.getpid()
+tracing_started = True
 
 # Detect RHEL8
 if re.match(".*\.el8\..*", platform.release()):
@@ -116,7 +117,8 @@ def parse_cpu_list(cpu_list):
     return out
 
 def parse_args():
-    global cpu_list, args
+    global cpu_list, args, tracing_started
+
     parser = argparse.ArgumentParser(
         description='Bcc-based trace tool for Real-Time workload.')
     parser.add_argument("--cpu-list", "-c",
@@ -131,9 +133,13 @@ def parse_args():
                         help='Dump summary when stopped (default: off)')
     parser.add_argument("--quiet", "-q", action='store_true',
                         help='Quiet mode, dump result when stopped; efficient, but less data (default: off)')
+    parser.add_argument("--wait-signal", "-w", action='store_true',
+                        help='Whether we hold the tracing until receive SIGHUP (default: no)')
     args = parser.parse_args()
     if args.quiet and args.summary:
         err("Parameter --quiet and --summary cannot be used together")
+    if args.wait_signal:
+        tracing_started = False
     if args.version:
         print("Version: %s" % VERSION)
         exit(0)
@@ -247,6 +253,11 @@ struct data_t {
 // Cpumask of which trace is enabled.  Now only covers 64 cores.
 BPF_ARRAY(trace_enabled_cpumask, u64, 1);
 
+#if WAIT_SIGNAL
+// Whether trace is enabled globally
+BPF_ARRAY(trace_enabled, u8, 1);
+#endif
+
 #if POLL_MODE
 BPF_PERF_OUTPUT(events);
 #else
@@ -256,6 +267,15 @@ BPF_HASH(output, struct data_t);
 #if BACKTRACE_ENABLED
 // Calltrace buffers
 BPF_STACK_TRACE(stack_traces, 1024);
+#endif
+
+#if WAIT_SIGNAL
+static inline bool
+global_trace_enabled(void)
+{
+    int index = 0;
+    return trace_enabled.lookup(&index);
+}
 #endif
 
 static inline void
@@ -277,6 +297,11 @@ fill_data(struct pt_regs *regs, struct data_t *data, u32 msg_type)
 static inline void
 data_submit(struct pt_regs *ctx, struct data_t *data)
 {
+#if WAIT_SIGNAL
+    if (unlikely(!global_trace_enabled()))
+        return;
+#endif
+
 #if POLL_MODE
     events.perf_submit(ctx, data, sizeof(*data));
 #else
@@ -540,6 +565,19 @@ def int_handler(signum, frame):
 signal.signal(signal.SIGINT, int_handler)
 signal.signal(signal.SIGTERM, int_handler)
 
+def hup_handler(signum, frame):
+    global bpf, tracing_started
+
+    # Enable BPF program
+    enabled = bpf.get_table("trace_enabled")
+    enabled[0] = ctypes.c_uint8(1)
+    # Enable ourselves
+    tracing_started = True
+
+    print("Received SIGHUP, tracing started.\n")
+
+signal.signal(signal.SIGHUP, hup_handler)
+
 def hook_name(name):
     """Return function name of a hook point to attach"""
     return "func____" + name
@@ -646,6 +684,7 @@ def main():
     # When --quiet, we use map mode so we only collect data at the end;
     # otherwise use poll mode to fetch message one by one
     define_add("POLL_MODE", not args.quiet)
+    define_add("WAIT_SIGNAL", args.wait_signal)
 
     body = body.replace("GENERATED_HOOKS", hooks)
     body = body.replace("GENERATED_DEFINES", defines)
@@ -665,6 +704,11 @@ def main():
     if args.backtrace:
         stack_traces = bpf.get_table("stack_traces")
     apply_cpu_list(bpf, cpu_list)
+
+    if args.wait_signal:
+        print("Please send SIGHUP to this process to start tracing..")
+        while not tracing_started:
+            time.sleep(0.1)
 
     if not args.quiet:
         print("%-18s %-20s %-4s %-8s %s" % ("TIME(s)", "COMM", "CPU", "PID", "MSG"))
