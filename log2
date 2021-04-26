@@ -1,0 +1,502 @@
+{
+    "funcptr=do_kernel_range_flush": {
+        "hook=smp_call_function_many_cond": [
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x7b",
+                    "cpa_flush_range+0x75",
+                    "change_page_attr_set_clr+0x23a",
+                    "set_memory_ro+0x26",
+                    "bpf_int_jit_compile+0x300",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x7b",
+                    "cpa_flush_range+0x75",
+                    "change_page_attr_set_clr+0x23a",
+                    "set_memory_x+0x37",
+                    "bpf_int_jit_compile+0x30a",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            }
+        ],
+        "hook=generic_exec_single": [
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x7b",
+                    "cpa_flush_range+0x75",
+                    "change_page_attr_set_clr+0x23a",
+                    "set_memory_x+0x37",
+                    "bpf_int_jit_compile+0x30a",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x7b",
+                    "cpa_flush_range+0x75",
+                    "change_page_attr_set_clr+0x23a",
+                    "set_memory_ro+0x26",
+                    "bpf_int_jit_compile+0x300",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            }
+        ]
+    },
+    "funcptr=do_sync_core": {
+        "hook=smp_call_function_many_cond": [
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0xcd",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0x11b",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0x8b",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0x156",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ],
+        "hook=generic_exec_single": [
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0xcd",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0x156",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0x11b",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "text_poke_bp_batch+0x8b",
+                    "text_poke_bp+0x3a",
+                    "arch_optimize_kprobes+0x7e",
+                    "kprobe_optimizer+0x16c",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ]
+    },
+    "funcptr=nohz_full_kick_func": {
+        "hook=irq_work_queue": [
+            {
+                "count": 1,
+                "stack": [
+                    "irq_work_queue+0x1"
+                ]
+            }
+        ],
+        "hook=irq_work_queue_on": [
+            {
+                "count": 1,
+                "stack": [
+                    "irq_work_queue_on+0x1",
+                    "tick_nohz_dep_set_all+0x55",
+                    "rcu_do_batch+0x435",
+                    "rcu_nocb_cb_kthread+0x86",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "irq_work_queue_on+0x1",
+                    "internal_add_timer+0x42",
+                    "add_timer_on+0x100",
+                    "queue_delayed_work_on+0x36",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 7021511,
+                "stack": [
+                    "irq_work_queue_on+0x1",
+                    "tick_nohz_dep_set_all+0x55",
+                    "rcu_do_batch+0x435",
+                    "rcu_core+0x175",
+                    "rcu_cpu_kthread+0xa5",
+                    "smpboot_thread_fn+0x1d6",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ]
+    },
+    "funcptr=vmstat_update": {
+        "hook=__queue_delayed_work": [
+            {
+                "count": 1,
+                "stack": [
+                    "__queue_delayed_work+0x1",
+                    "queue_delayed_work_on+0x36",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ],
+        "hook=process_one_work": [
+            {
+                "count": 1,
+                "stack": [
+                    "process_one_work+0x1",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ],
+        "hook=__queue_work": [
+            {
+                "count": 1,
+                "stack": [
+                    "__queue_work+0x1",
+                    "call_timer_fn+0x32",
+                    "run_timer_softirq+0x482",
+                    "__softirqentry_text_start+0xa5",
+                    "run_ksoftirqd+0x38",
+                    "smpboot_thread_fn+0x1d6",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ]
+    },
+    "funcptr=do_flush_tlb_all": {
+        "hook=smp_call_function_many_cond": [
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x48",
+                    "__purge_vmap_area_lazy+0x70",
+                    "_vm_unmap_aliases.part.42+0xdf",
+                    "change_page_attr_set_clr+0x1cc",
+                    "set_memory_ro+0x26",
+                    "bpf_int_jit_compile+0x300",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "__change_page_attr+0x544",
+                    "__change_page_attr_set_clr+0x67",
+                    "__change_page_attr_set_clr+0x2b5",
+                    "change_page_attr_set_clr+0x130",
+                    "set_memory_ro+0x26",
+                    "bpf_int_jit_compile+0x300",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            },
+            {
+                "count": 2,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x48",
+                    "__purge_vmap_area_lazy+0x70",
+                    "_vm_unmap_aliases.part.42+0xdf",
+                    "__vunmap+0x11d",
+                    "bpf_jit_binary_free+0xd",
+                    "bpf_jit_free+0x28",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 146,
+                "stack": [
+                    "smp_call_function_many_cond+0x1",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x48",
+                    "__purge_vmap_area_lazy+0x70",
+                    "free_vmap_area_noflush+0xf2",
+                    "remove_vm_area+0x90",
+                    "__vunmap+0x59",
+                    "free_work+0x21",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ],
+        "hook=generic_exec_single": [
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "__change_page_attr+0x544",
+                    "__change_page_attr_set_clr+0x67",
+                    "__change_page_attr_set_clr+0x2b5",
+                    "change_page_attr_set_clr+0x130",
+                    "set_memory_ro+0x26",
+                    "bpf_int_jit_compile+0x300",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            },
+            {
+                "count": 1,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x48",
+                    "__purge_vmap_area_lazy+0x70",
+                    "_vm_unmap_aliases.part.42+0xdf",
+                    "change_page_attr_set_clr+0x1cc",
+                    "set_memory_ro+0x26",
+                    "bpf_int_jit_compile+0x300",
+                    "bpf_prog_select_runtime+0xa6",
+                    "bpf_prepare_filter+0x523",
+                    "bpf_prog_create_from_user+0xbb",
+                    "do_seccomp+0x241",
+                    "__x64_sys_prctl+0x361",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            },
+            {
+                "count": 2,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x48",
+                    "__purge_vmap_area_lazy+0x70",
+                    "_vm_unmap_aliases.part.42+0xdf",
+                    "__vunmap+0x11d",
+                    "bpf_jit_binary_free+0xd",
+                    "bpf_jit_free+0x28",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            },
+            {
+                "count": 146,
+                "stack": [
+                    "generic_exec_single+0x1",
+                    "smp_call_function_single+0xac",
+                    "smp_call_function+0x39",
+                    "on_each_cpu+0x2a",
+                    "flush_tlb_kernel_range+0x48",
+                    "__purge_vmap_area_lazy+0x70",
+                    "free_vmap_area_noflush+0xf2",
+                    "remove_vm_area+0x90",
+                    "__vunmap+0x59",
+                    "free_work+0x21",
+                    "process_one_work+0x18f",
+                    "worker_thread+0x30",
+                    "kthread+0x15d",
+                    "ret_from_fork+0x35"
+                ]
+            }
+        ]
+    },
+    "funcptr=perf_pending_event": {
+        "hook=irq_work_queue": [
+            {
+                "count": 1,
+                "stack": [
+                    "irq_work_queue+0x1",
+                    "perf_output_end+0xa",
+                    "perf_event_task_output+0x12c",
+                    "perf_iterate_sb+0x1a2",
+                    "perf_event_task+0x7f",
+                    "do_exit+0x3ae",
+                    "__x64_sys_exit+0x17",
+                    "do_syscall_64+0x87",
+                    "entry_SYSCALL_64_after_hwframe+0x65"
+                ]
+            }
+        ]
+    }
+}
