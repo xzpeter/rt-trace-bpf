@@ -116,6 +116,50 @@ def parse_cpu_list(cpu_list):
             out.append(cpu)
     return out
 
+def merge_logs(logs):
+
+    def entry_same(entry1, entry2):
+        "Return true if same calltrace, false otherwise"
+        stack1 = entry1["stack"]
+        stack2 = entry2["stack"]
+        l = len(stack1)
+        if l != len(stack2):
+            return False
+        for i in range(0, l):
+            if stack1[i] != stack2[i]:
+                return False
+        return True
+
+    def entry_exists(target_list, entry):
+        "Return -1 if entry does not exist, or index of same entry (>=0)"
+        for i in range(0, len(target_list)):
+            if entry_same(target_list[i], entry):
+                return i
+        return -1
+
+    final = {}
+    for log in logs:
+        f = open(log, "r")
+        data = json.loads(f.read())
+        for k1 in data:
+            v1 = data[k1]
+            if k1 not in final:
+                final[k1] = {}
+            for k2 in v1:
+                entry_list = v1[k2]
+                if k2 not in final[k1]:
+                    final[k1][k2] = []
+                target_list = final[k1][k2]
+                for entry in entry_list:
+                    i = entry_exists(target_list, entry)
+                    if i < 0:
+                        target_list.append(entry)
+                    else:
+                        target_list[i]["count"] += entry["count"]
+
+    print(json.dumps(final, indent=4))
+    exit(0)
+
 def parse_args():
     global cpu_list, args, tracing_started
 
@@ -135,7 +179,11 @@ def parse_args():
                         help='Quiet mode, dump result when stopped; efficient, but less data (default: off)')
     parser.add_argument("--wait-signal", "-w", action='store_true',
                         help='Whether we hold the tracing until receive SIGHUP (default: no)')
+    parser.add_argument("--merge-logs", "-m", nargs='+',
+                        help='Merge multiple logs and dump the summary')
     args = parser.parse_args()
+    if args.merge_logs:
+        merge_logs(args.merge_logs)
     if args.quiet and args.summary:
         err("Parameter --quiet and --summary cannot be used together")
     if args.wait_signal:
