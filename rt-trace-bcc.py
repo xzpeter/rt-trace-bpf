@@ -64,7 +64,9 @@ MAX_N_CPUS = 64
 # To be generated, as part of BPF program
 hooks = ""
 defines = ""
-# Keeps a list of hooks that are enabled
+# Keeps a list of hooks that are enabled.  Note that "name" in this list is the
+# real name of the hooks, e.g., when some "alternatives" got chosen it'll be
+# the alternative name not the key name in static_kprobe_list.
 hook_active_list = []
 # List of cpus to trace
 cpu_list = []
@@ -253,6 +255,14 @@ static_kprobe_list = {
     },
     "smp_call_function_many_cond": {
         "enabled": True,
+        # When "alternatives" is defined, we'll use the key first, if the key
+        # is not in kprobe list, switch to an alternative that exist.  Bail out
+        # if all alternatives fail too.
+        "alternatives": [
+            # Old kernels do not have smp_call_function_many_cond, then
+            # fallback to smp_call_function_many, e.g., rhel8.2.
+            "smp_call_function_many",
+        ],
         "handler": handle_func,
     },
     "irq_work_queue": {
@@ -651,6 +661,17 @@ int %s(struct pt_regs *ctx)
         "name": name,
     })
 
+def static_kprobe_list_find_entry(name):
+    global static_kprobe_list
+    if name in static_kprobe_list:
+        return static_kprobe_list[name]
+    for key, entry in static_kprobe_list.items():
+        if "alternatives" not in entry:
+            continue
+        if name in entry["alternatives"]:
+            return entry
+    raise Exception("Hook name '%s' not found in static_kprobe_list" % name)
+
 def print_event(cpu, data, size):
     global bpf, stack_traces, args, first_ts, start_phase, cur_pid
 
@@ -673,7 +694,7 @@ def print_event(cpu, data, size):
     start_phase = False
 
     if entry["type"] == "static_kprobe":
-        static_entry = static_kprobe_list[name]
+        static_entry = static_kprobe_list_find_entry(name)
         handler = static_entry["handler"]
         if handler:
             # Overwrite msg with the handler output
@@ -705,6 +726,27 @@ def define_add(name, var):
     global defines
     defines += "%-10s%-50s%d\n" % ("#define", name, var)
 
+def has_kprobe(name):
+    "Whether kprobe existed?  Try avoid calling this since it's a bit slow"
+    return bool(BPF.get_kprobe_functions(bytes("^%s$" % name, "utf-8")))
+
+def bpf_find_kprobe(name, entry):
+    if "alternatives" not in entry:
+        # If not specified, just use it! (as has_kprobe is slow)
+        return name
+    if has_kprobe(name):
+        return name
+    alternatives = entry["alternatives"]
+    for alt in alternatives:
+        if has_kprobe(alt):
+            print("Using alternative '%s' for original hook '%s'" % \
+                  (alt, name))
+            return alt
+    raise Exception("Cannot find kprobe for entry '%s'" % name)
+
+def get_hook_func_name(name):
+    return "kprobe__%s" % name
+
 def main():
     global bpf, stack_traces, cpu_list, body
 
@@ -721,8 +763,15 @@ def main():
         if not entry["enabled"]:
             continue
         define_add(msg_type, index)
+        real_name = bpf_find_kprobe(name, entry)
+        if name is not real_name:
+            # Used one alternative hook, so need to change the hook name.  This
+            # is a bit ugly, but probably simplest so far..
+            old_hook = get_hook_func_name(name)
+            new_hook = get_hook_func_name(real_name)
+            body = body.replace(old_hook, new_hook)
         hook_active_list.append({
-            "name": name,
+            "name": real_name,
             "type": "static_kprobe",
         })
 
