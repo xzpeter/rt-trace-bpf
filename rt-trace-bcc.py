@@ -643,7 +643,7 @@ def hook_name(name):
     """Return function name of a hook point to attach"""
     return "func____" + name
 
-def tp_append(name, _type):
+def tp_append(name):
     """Enable a hook with type, by appending the BPF program.  When `_type'
     is 'kprobe', need to provide subtype."""
     global hooks, hook_active_list
