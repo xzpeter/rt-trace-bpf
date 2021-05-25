@@ -162,8 +162,17 @@ def merge_logs(logs):
     print(json.dumps(final, indent=4))
     exit(0)
 
+tracepoint_list = {}
+
+def get_tp(name):
+    results = BPF.get_tracepoints(bytes(".*:%s" % name, "utf-8"))
+    if not results:
+        return None
+    # Use the 1st one found
+    return results[0]
+
 def parse_args():
-    global cpu_list, args, tracing_started
+    global cpu_list, args, tracing_started, tracepoint_list
 
     parser = argparse.ArgumentParser(
         description='Bcc-based trace tool for Real-Time workload.')
@@ -185,6 +194,8 @@ def parse_args():
                         help='Merge multiple logs and dump the summary')
     parser.add_argument("--show-zero-ts", "-T", action='store_true',
                         help='Show timestamps from zero (default: off)')
+    parser.add_argument("--enable-tps", "-e", type=str,
+                        help='Enable tracepoints (comma delimited list)')
 
     args = parser.parse_args()
     if args.merge_logs:
@@ -196,6 +207,15 @@ def parse_args():
     if args.version:
         print("Version: %s" % VERSION)
         exit(0)
+    if args.enable_tps:
+        tps = args.enable_tps.split(',')
+        for tp in tps:
+            fulltp = get_tp(tp)
+            if not tp:
+                err("Tracepoint %s not found" % tp)
+            tracepoint_list[tp] = { "enabled": True, "tracepoint": fulltp }
+        print ("List of enabled tracepoints: ", end="")
+        print (tps)
     if not args.cpu_list:
         print("CPU list (--cpu-list/-c) is required.  " +
               "Please use '-h' to dump the complete help message.")
@@ -206,24 +226,6 @@ def parse_args():
         err("Invalid cpu list: %s" % args.cpu_list)
 
 parse_args()
-
-#
-# To enable one tracepoint/kprobe, change "enabled" to True.
-#
-tracepoint_list = {
-    "sched_switch": {
-        "enabled": False,
-        "tracepoint": "sched:sched_switch",
-    },
-    "clock_nanosleep_enter": {
-        "enabled": False,
-        "tracepoint": "syscalls:sys_enter_clock_nanosleep"
-    },
-    "clock_nanosleep_exit": {
-        "enabled": False,
-        "tracepoint": "syscalls:sys_exit_clock_nanosleep",
-    },
-}
 
 def handle_func(name, event):
     return "%s (cpu=%d, func=%s)" % (name, event.cpu, _d(bpf.ksym(event.funcptr)))
