@@ -183,6 +183,9 @@ def parse_args():
                         help='Whether we hold the tracing until receive SIGHUP (default: no)')
     parser.add_argument("--merge-logs", "-m", nargs='+',
                         help='Merge multiple logs and dump the summary')
+    parser.add_argument("--show-zero-ts", "-T", action='store_true',
+                        help='Show timestamps from zero (default: off)')
+
     args = parser.parse_args()
     if args.merge_logs:
         merge_logs(args.merge_logs)
@@ -677,9 +680,10 @@ def print_event(cpu, data, size):
 
     event = bpf["events"].event(data)
     time_s = (float(event.ts)) / 1000000000
-    if not first_ts:
-        first_ts = time_s
-    time_s -= first_ts
+    if args.show_zero_ts:
+        if not first_ts:
+            first_ts = time_s
+        time_s -= first_ts
     entry = hook_active_list[event.msg_type]
     name = entry["name"]
     msg = "%s (cpu=%d)" % (name, event.cpu)
