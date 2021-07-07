@@ -238,6 +238,9 @@ def handle_queue_delayed_work(name, event):
     return "%s (target=%d, func=%s, delay=%d)" % \
         (name, event.args[0], _d(bpf.ksym(event.funcptr)), event.args[1])
 
+def handle_resched(name, event):
+    return "%s (cpu=%d => cpu=%d)" % (name, event.cpu, event.args[0])
+
 # These kprobes have custom hooks so they can dump more things
 static_kprobe_list = {
     # TBD: track smp_apic_timer_interrupt/__sysvec_apic_timer_interrupt with:
@@ -279,6 +282,10 @@ static_kprobe_list = {
     "irq_work_queue_on": {
         "enabled": True if os_version == "rhel8" else False,
         "handler": handle_target_func,
+    },
+    "native_smp_send_reschedule": {
+        "enabled": True if platform.machine() == "x86_64" else False,
+        "handler": handle_resched,
     },
 }
 
@@ -563,6 +570,23 @@ int kprobe__irq_work_queue_on(struct pt_regs *regs, struct irq_work *work,
     data.args[0] = (u64)cpu;
 #endif
     data.funcptr = (u64)work->func;
+    data_submit(regs, &data);
+    return 0;
+}
+#endif
+
+#if ENABLE_NATIVE_SMP_SEND_RESCHEDULE
+int kprobe__native_smp_send_reschedule(struct pt_regs *regs, int cpu)
+{
+    struct data_t data = {};
+
+    if (!cpu_in_list(cpu))
+        return 0;
+
+    fill_data(regs, &data, MSG_TYPE_NATIVE_SMP_SEND_RESCHEDULE);
+#if POLL_MODE
+    data.args[0] = (u64)cpu;
+#endif
     data_submit(regs, &data);
     return 0;
 }
