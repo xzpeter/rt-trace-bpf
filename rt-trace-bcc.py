@@ -35,9 +35,7 @@
 # - irq_work_queue_on
 #
 # TODO:
-# - Support MAX_N_CPUS to 256 cores, maybe?  Currently it's 64.
 # - Allow enable/disable hooks
-# - Allow specify any tracepoint, remove the tracepoint list
 # - Allow capture ftrace_printk() (e.g., cyclictest message dumped to
 #   ftrace buffer when threshold reached)
 
@@ -54,9 +52,8 @@ import re
 
 VERSION = "0.2.3"
 
-# Limit this because we use one u64 as cpumask.  Problem is BPF does not allow
-# loop, so any real cpumask won't work.
-MAX_N_CPUS = 64
+# Must change cpumask_contains_target if this value is changed
+MAX_N_CPUS = 256
 
 #
 # Global vars
@@ -297,6 +294,7 @@ body = """
 #include <linux/smp.h>
 #include <linux/irq_work.h>
 #include <linux/llist.h>
+#include <linux/bits.h>
 
 // Global definitions generated
 GENERATED_DEFINES
@@ -320,8 +318,8 @@ struct data_t {
 #endif
 };
 
-// Cpumask of which trace is enabled.  Now only covers 64 cores.
-BPF_ARRAY(trace_enabled_cpumask, u64, 1);
+// Cpumask of which trace is enabled.
+BPF_ARRAY(trace_enabled_cpumask, u64, MAX_N_CPUS/64);
 
 #if WAIT_SIGNAL
 // Whether trace is enabled globally
@@ -388,21 +386,19 @@ kprobe_common(struct pt_regs *ctx, u32 msg_type)
     data_submit(ctx, &data);
 }
 
-static inline u64* get_cpu_list(void)
+static inline u64* get_cpu_list(int index)
 {
-    int index = 0;
-
     return trace_enabled_cpumask.lookup(&index);
 }
 
 static inline bool cpu_in_list(int cpu)
 {
-    u64 *cpu_list = get_cpu_list();
+    u64 *cpu_list = get_cpu_list(BIT_WORD(cpu));
 
     if (cpu >= MAX_N_CPUS || !cpu_list)
         return false;
 
-    if ((1UL << cpu) & *cpu_list)
+    if (BIT_MASK(cpu) & *cpu_list)
         return true;
 
     return false;
@@ -424,13 +420,17 @@ kprobe_trace_local(struct pt_regs *ctx, u32 msg_type)
 static inline bool
 cpumask_contains_target(struct cpumask *mask)
 {
-    u64 *cpu_list = get_cpu_list(), *ptr = (u64 *)mask;
+    u64 *cpu_list, *ptr = (u64 *)mask->bits;
+    int i;
 
-    if (!cpu_list || !ptr)
-        return false;
-
-    if (*cpu_list & *ptr)
-        return true;
+    for (i = 0; i < BIT_WORD(MAX_N_CPUS); i++) {
+        cpu_list = get_cpu_list(i);
+        if (!cpu_list || !ptr)
+            return false;
+        if (*cpu_list & *ptr)
+            return true;
+        ptr++;
+    }
 
     return false;
 }
@@ -747,10 +747,15 @@ def print_event(cpu, data, size):
 def apply_cpu_list(bpf, cpu_list):
     """Apply the cpu_list to BPF program"""
     cpu_array = bpf.get_table("trace_enabled_cpumask")
-    out = 0
-    for cpu in cpu_list:
-        out |= 1 << cpu
-    cpu_array[0] = ctypes.c_uint64(out)
+
+    for cblock in range(0, int(MAX_N_CPUS/64)):
+        out = 0
+
+        for cpu in cpu_list:
+            if cpu >= cblock*64 and cpu < cblock*64 + 64:
+                out |= 1 << (cpu % 64)
+
+        cpu_array[cblock] = ctypes.c_uint64(out)
 
 def define_add(name, var):
     global defines
