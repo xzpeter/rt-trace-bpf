@@ -332,6 +332,8 @@ BPF_PERF_OUTPUT(events);
 BPF_HASH(output, struct data_t);
 #endif
 
+BPF_PERCPU_ARRAY(percpu_data_t, struct data_t, 1);
+
 #if BACKTRACE_ENABLED
 // Calltrace buffers
 BPF_STACK_TRACE(stack_traces, 1024);
@@ -381,9 +383,13 @@ data_submit(struct pt_regs *ctx, struct data_t *data)
 static inline void
 kprobe_common(struct pt_regs *ctx, u32 msg_type)
 {
-    struct data_t data = {};
-    fill_data(ctx, &data, msg_type);
-    data_submit(ctx, &data);
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return;
+    fill_data(ctx, data, msg_type);
+    data_submit(ctx, data);
 }
 
 static inline u64* get_cpu_list(int index)
@@ -445,14 +451,18 @@ cpumask_contains_target(struct cpumask *mask)
 int kprobe__process_one_work(struct pt_regs *regs, void *unused,
                              struct work_struct *work)
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!current_cpu_in_list())
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE_PROCESS_ONE_WORK);
-    data.funcptr = (u64)work->func;
-    data_submit(regs, &data);
+    fill_data(regs, data, MSG_TYPE_PROCESS_ONE_WORK);
+    data->funcptr = (u64)work->func;
+    data_submit(regs, data);
     return 0;
 }
 #endif
@@ -461,17 +471,21 @@ int kprobe__process_one_work(struct pt_regs *regs, void *unused,
 int kprobe____queue_work(struct pt_regs *regs, int cpu, void *unused,
                          struct work_struct *work)
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!cpu_in_list(cpu))
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE___QUEUE_WORK);
+    fill_data(regs, data, MSG_TYPE___QUEUE_WORK);
 #if POLL_MODE
-    data.args[0] = (u64)cpu;
+    data->args[0] = (u64)cpu;
 #endif
-    data.funcptr = (u64)work->func;
-    data_submit(regs, &data);
+    data->funcptr = (u64)work->func;
+    data_submit(regs, data);
     return 0;
 }
 #endif
@@ -481,18 +495,22 @@ int kprobe____queue_delayed_work(struct pt_regs *regs, int cpu,
                                  void *unused, struct delayed_work *work,
                                  unsigned long delay)
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!cpu_in_list(cpu))
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE___QUEUE_DELAYED_WORK);
+    fill_data(regs, data, MSG_TYPE___QUEUE_DELAYED_WORK);
 #if POLL_MODE
-    data.args[0] = (u64)cpu;
-    data.args[1] = (u64)delay;
+    data->args[0] = (u64)cpu;
+    data->args[1] = (u64)delay;
 #endif
-    data.funcptr = (u64)work->work.func;
-    data_submit(regs, &data);
+    data->funcptr = (u64)work->work.func;
+    data_submit(regs, data);
     return 0;
 }
 #endif
@@ -506,21 +524,25 @@ int kprobe__generic_exec_single(struct pt_regs *regs, int cpu,
     call_single_data_t *csd)
 #endif
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!cpu_in_list(cpu))
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE_GENERIC_EXEC_SINGLE);
+    fill_data(regs, data, MSG_TYPE_GENERIC_EXEC_SINGLE);
 #if POLL_MODE
-    data.args[0] = (u64)cpu;
+    data->args[0] = (u64)cpu;
 #endif
 #if OS_VERSION_RHEL8
-    data.funcptr = (u64)func;
+    data->funcptr = (u64)func;
 #else
-    data.funcptr = (u64)csd->func;
+    data->funcptr = (u64)csd->func;
 #endif
-    data_submit(regs, &data);
+    data_submit(regs, data);
     return 0;
 }
 #endif
@@ -529,14 +551,18 @@ int kprobe__generic_exec_single(struct pt_regs *regs, int cpu,
 int kprobe__smp_call_function_many_cond(struct pt_regs *regs,
     struct cpumask *mask, void *func)
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!cpumask_contains_target(mask))
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE_SMP_CALL_FUNCTION_MANY_COND);
-    data.funcptr = (u64)func;
-    data_submit(regs, &data);
+    fill_data(regs, data, MSG_TYPE_SMP_CALL_FUNCTION_MANY_COND);
+    data->funcptr = (u64)func;
+    data_submit(regs, data);
     return 0;
 }
 #endif
@@ -544,14 +570,18 @@ int kprobe__smp_call_function_many_cond(struct pt_regs *regs,
 #if ENABLE_IRQ_WORK_QUEUE
 int kprobe__irq_work_queue(struct pt_regs *regs, struct irq_work *work)
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!current_cpu_in_list())
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE_IRQ_WORK_QUEUE);
-    data.funcptr = (u64)work->func;
-    data_submit(regs, &data);
+    fill_data(regs, data, MSG_TYPE_IRQ_WORK_QUEUE);
+    data->funcptr = (u64)work->func;
+    data_submit(regs, data);
     return 0;
 }
 #endif
@@ -560,17 +590,21 @@ int kprobe__irq_work_queue(struct pt_regs *regs, struct irq_work *work)
 int kprobe__irq_work_queue_on(struct pt_regs *regs, struct irq_work *work,
                               int cpu)
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!cpu_in_list(cpu))
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE_IRQ_WORK_QUEUE_ON);
+    fill_data(regs, data, MSG_TYPE_IRQ_WORK_QUEUE_ON);
 #if POLL_MODE
-    data.args[0] = (u64)cpu;
+    data->args[0] = (u64)cpu;
 #endif
-    data.funcptr = (u64)work->func;
-    data_submit(regs, &data);
+    data->funcptr = (u64)work->func;
+    data_submit(regs, data);
     return 0;
 }
 #endif
@@ -578,16 +612,20 @@ int kprobe__irq_work_queue_on(struct pt_regs *regs, struct irq_work *work,
 #if ENABLE_NATIVE_SMP_SEND_RESCHEDULE
 int kprobe__native_smp_send_reschedule(struct pt_regs *regs, int cpu)
 {
-    struct data_t data = {};
+    int zero = 0;
+    struct data_t* data = percpu_data_t.lookup(&zero);
+
+    if (!data)
+        return 0;
 
     if (!cpu_in_list(cpu))
         return 0;
 
-    fill_data(regs, &data, MSG_TYPE_NATIVE_SMP_SEND_RESCHEDULE);
+    fill_data(regs, data, MSG_TYPE_NATIVE_SMP_SEND_RESCHEDULE);
 #if POLL_MODE
-    data.args[0] = (u64)cpu;
+    data->args[0] = (u64)cpu;
 #endif
-    data_submit(regs, &data);
+    data_submit(regs, data);
     return 0;
 }
 #endif
