@@ -397,7 +397,7 @@ static inline u64* get_cpu_list(int index)
     return trace_enabled_cpumask.lookup(&index);
 }
 
-static inline bool cpu_in_list(int cpu)
+static inline bool cpu_in_list(unsigned int cpu)
 {
     u64 *cpu_list = get_cpu_list(BIT_WORD(cpu));
 
