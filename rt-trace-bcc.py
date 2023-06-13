@@ -306,6 +306,7 @@ struct data_t {
     u32 msg_type;
 #if BACKTRACE_ENABLED
     int stack_id;
+    int stack_id_u;
 #endif
 
 #if POLL_MODE
@@ -355,6 +356,7 @@ fill_data(struct pt_regs *regs, struct data_t *data, u32 msg_type)
 #if BACKTRACE_ENABLED
     // stack_id can be -EFAULT (0xfffffff2) when not applicable
     data->stack_id = stack_traces.get_stackid(regs, 0);
+    data->stack_id_u = stack_traces.get_stackid(regs, BPF_F_USER_STACK);
 #endif
 #if POLL_MODE
     data->pid = bpf_get_current_pid_tgid();
@@ -633,7 +635,7 @@ int kprobe__native_smp_send_reschedule(struct pt_regs *regs, int cpu)
 GENERATED_HOOKS
 """
 
-def get_stack(stack_id):
+def get_stack(stack_id, pid):
     global bpf, stack_traces
     bt = []
     if stack_id == -14:
@@ -644,7 +646,12 @@ def get_stack(stack_id):
         print("[error: stack_id=%d]" % stack_id)
         return []
     for addr in stack_traces.walk(stack_id):
-        sym = _d(bpf.ksym(addr, show_offset=True))
+        if pid == 0:
+            sym = _d(bpf.ksym(addr, show_offset=True))
+        else:
+            sym = _d(bpf.sym(addr, pid, show_module=False, show_offset=True))
+            sym = sym + "/" + hex(addr)
+
         bt.append(sym)
     return bt
 
@@ -668,7 +675,8 @@ def collect_hash_data():
             results[funcptr][name] = []
         entry = { "count": count }
         if args.backtrace:
-            entry["stack"] = get_stack(event.stack_id)
+            entry["stack"] = get_stack(event.stack_id, 0)
+            entry["ustack"] = get_stack(event.stack_id_u, event.pid)
         results[funcptr][name].append(entry)
 
     return results
@@ -776,9 +784,14 @@ def print_event(cpu, data, size):
         results[msg]["count"] += 1
 
     if args.backtrace:
-        bt = get_stack(event.stack_id)
+        bt = get_stack(event.stack_id, 0)
         for call in bt:
             print("\t%s" % call)
+        ubt = get_stack(event.stack_id_u, event.pid)
+        if len(ubt) > 0:
+            print("user stack:")
+            for ucall in ubt:
+                print("\t%s" % ucall)
         if "backtrace" not in results[msg]:
             results[msg]["backtrace"] = bt
 
