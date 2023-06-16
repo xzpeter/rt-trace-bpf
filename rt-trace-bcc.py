@@ -193,6 +193,8 @@ def parse_args():
                         help='Show timestamps from zero (default: off)')
     parser.add_argument("--enable-tps", "-e", type=str,
                         help='Enable tracepoints (comma delimited list)')
+    parser.add_argument("--user-exit-tracking", "-u", action='store_true',
+                        help='Enable tracking of exits from userspace')
 
     args = parser.parse_args()
     if args.merge_logs:
@@ -316,6 +318,10 @@ struct data_t {
     char comm[TASK_COMM_LEN];
     u64 args[2];
     u64 ts;
+#endif
+#if USER_EXIT_TRACKING
+    // delta between user_exit and user_enter tracepoints
+    u64 tdelta;
 #endif
 };
 
@@ -442,6 +448,58 @@ cpumask_contains_target(struct cpumask *mask)
 
     return false;
 }
+
+#if USER_EXIT_TRACKING
+
+struct trace_user_exit_data {
+    u64 ts;
+};
+BPF_PERCPU_ARRAY(percpu_user_exit_data, struct trace_user_exit_data, 1);
+
+int kprobe_user_exit(struct pt_regs *ctx)
+{
+    int zero = 0;
+    struct trace_user_exit_data *udata;
+
+    if (!current_cpu_in_list())
+        return 0;
+
+    udata = percpu_user_exit_data.lookup(&zero);
+    if (!udata)
+        return 0;
+
+    udata->ts = bpf_ktime_get_ns();
+    kprobe_common(ctx, MSG_TYPE_USER_EXIT);
+    return 0;
+}
+
+int kprobe_user_enter(struct pt_regs *ctx)
+{
+    int zero = 0;
+    struct trace_user_exit_data *udata;
+    struct data_t* data;
+
+    if (!current_cpu_in_list())
+        return 0;
+
+    udata = percpu_user_exit_data.lookup(&zero);
+    if (!udata)
+        return 0;
+
+    zero = 0;
+    data = percpu_data_t.lookup(&zero);
+    if (!data)
+        return 0;
+
+    fill_data(ctx, data, MSG_TYPE_USER_ENTER);
+    data->tdelta = bpf_ktime_get_ns() - udata->ts;
+
+    data_submit(ctx, data);
+    return 0;
+}
+
+#endif
+
 
 /*-------------------------------*
  |                               |
@@ -775,6 +833,10 @@ def print_event(cpu, data, size):
         if handler:
             # Overwrite msg with the handler output
             msg = handler(name, event)
+    if entry["type"] == "usertrack":
+        if name == "user_enter":
+            msg = "%s (cpu=%d) %7d ns" % (name, event.cpu, event.tdelta)
+
     print("%-18.9f %-20s %-4d %-8d %s" %
         (time_s, comm, event.cpu, event.pid, msg))
 
@@ -861,6 +923,17 @@ def main():
             "type": "static_kprobe",
         })
 
+    if args.user_exit_tracking:
+        for name in ["user_exit", "user_enter"]:
+            index = len(hook_active_list)
+            msg_type = "MSG_TYPE_" + name.upper()
+            define_add(msg_type, index)
+            # Create mapping in hook_active_list
+            hook_active_list.append({
+                "type": "usertrack",
+                "name": name,
+            })
+
     define_add("OS_VERSION_RHEL8", os_version == "rhel8")
     define_add("BACKTRACE_ENABLED", args.backtrace)
     define_add("MAX_N_CPUS", MAX_N_CPUS)
@@ -868,6 +941,7 @@ def main():
     # otherwise use poll mode to fetch message one by one
     define_add("POLL_MODE", not args.quiet)
     define_add("WAIT_SIGNAL", args.wait_signal)
+    define_add("USER_EXIT_TRACKING", args.user_exit_tracking)
 
     body = body.replace("GENERATED_HOOKS", hooks)
     body = body.replace("GENERATED_DEFINES", defines)
@@ -883,6 +957,10 @@ def main():
             entry = tracepoint_list[name]
             bpf.attach_tracepoint(tp=entry["tracepoint"], fn_name=hook_name(name))
         print("Enabled hook point: %s" % name)
+
+    if args.user_exit_tracking:
+        bpf.attach_tracepoint(tp="context_tracking:user_exit",  fn_name="kprobe_user_exit");
+        bpf.attach_tracepoint(tp="context_tracking:user_enter",  fn_name="kprobe_user_enter");
 
     if args.backtrace:
         stack_traces = bpf.get_table("stack_traces")
