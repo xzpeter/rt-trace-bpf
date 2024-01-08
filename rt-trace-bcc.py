@@ -80,7 +80,7 @@ cur_pid = os.getpid()
 tracing_started = True
 
 # Detect RHEL8
-if re.match(".*\.el8\..*", platform.release()):
+if re.match(r".*\.el8\..*", platform.release()):
     os_version = "rhel8"
 else:
     os_version = "upstream"
